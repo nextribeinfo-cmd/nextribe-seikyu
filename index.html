@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>請求書作成 | NEXTRIBE</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans JP', sans-serif; background: #f5f5f5; color: #333; }
+.container { max-width: 900px; margin: 30px auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+h1 { font-size: 22px; font-weight: bold; margin-bottom: 24px; color: #1a1a2e; border-bottom: 2px solid #1a1a2e; padding-bottom: 10px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group.full { grid-column: 1 / -1; }
+label { font-size: 12px; font-weight: bold; color: #555; }
+input, select, textarea { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: #1a1a2e; }
+textarea { resize: vertical; min-height: 80px; }
+.section-title { font-size: 14px; font-weight: bold; margin: 20px 0 10px; color: #1a1a2e; background: #f0f0f5; padding: 8px 12px; border-radius: 4px; }
+.items-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+.items-table th { background: #1a1a2e; color: #fff; padding: 8px; font-size: 12px; text-align: center; }
+.items-table td { padding: 6px 4px; border-bottom: 1px solid #eee; }
+.items-table input { width: 100%; border: 1px solid #ddd; padding: 6px; border-radius: 3px; font-size: 13px; }
+.items-table td.amount { text-align: right; font-size: 13px; padding: 6px 8px; }
+.btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
+.btn-add { background: #e8f4e8; color: #2d7a2d; margin-bottom: 12px; }
+.btn-del { background: #fde8e8; color: #c0392b; padding: 6px 10px; }
+.totals { margin-left: auto; width: 280px; margin-top: 10px; }
+.totals table { width: 100%; border-collapse: collapse; }
+.totals td { padding: 6px 12px; font-size: 14px; }
+.totals td:last-child { text-align: right; font-weight: bold; }
+.totals tr.total-row { background: #1a1a2e; color: #fff; font-size: 16px; }
+.btn-generate { background: #1a1a2e; color: #fff; padding: 12px 32px; font-size: 16px; width: 100%; margin-top: 24px; border-radius: 6px; }
+.btn-generate:hover { background: #2d2d4e; }
+
+/* 印刷用 */
+@media print {
+  body { background: #fff; }
+  .container { box-shadow: none; margin: 0; padding: 0; }
+  .no-print { display: none !important; }
+  #preview { display: block !important; }
+  .form-section { display: none !important; }
+}
+
+/* プレビュー */
+#preview { display: none; }
+.invoice { max-width: 800px; margin: 0 auto; padding: 40px; font-family: 'MS Mincho', 'Yu Mincho', serif; }
+.inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
+.inv-meta { text-align: right; font-size: 13px; line-height: 1.8; }
+.inv-title { text-align: center; font-size: 36px; font-weight: bold; margin: 20px 0; }
+.inv-body { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+.inv-client h2 { font-size: 22px; border-bottom: 2px solid #333; padding-bottom: 4px; margin-bottom: 16px; }
+.inv-amount { font-size: 18px; font-weight: bold; margin: 12px 0; }
+.inv-amount span { font-size: 24px; }
+.inv-company { text-align: right; font-size: 12px; line-height: 2; }
+.inv-logo { font-size: 28px; font-weight: 900; letter-spacing: 4px; }
+.inv-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+.inv-table th { background: #1a1a2e; color: #fff; padding: 10px; font-size: 13px; }
+.inv-table td { padding: 10px; border-bottom: 1px solid #ddd; font-size: 13px; }
+.inv-table td.right { text-align: right; }
+.inv-table td.center { text-align: center; }
+.inv-totals { margin-left: auto; width: 280px; }
+.inv-totals table { width: 100%; border-collapse: collapse; }
+.inv-totals td { padding: 8px 12px; font-size: 14px; border-bottom: 1px solid #eee; }
+.inv-totals td:last-child { text-align: right; }
+.inv-totals tr.grand { background: #1a1a2e; color: #fff; font-size: 16px; }
+.inv-transport { margin-top: 24px; font-size: 12px; line-height: 1.8; }
+.inv-transport strong { display: block; margin-bottom: 4px; }
+.inv-bank { margin-top: 20px; font-size: 13px; font-weight: bold; }
+.inv-footer { text-align: right; color: #aaa; font-size: 10px; margin-top: 30px; }
+.stamp-area { width: 60px; height: 60px; border: 1px solid #333; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; color: #999; margin-left: 10px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- 入力フォーム -->
+<div class="form-section">
+  <h1>請求書作成</h1>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>請求日</label>
+      <input type="date" id="invoiceDate">
+    </div>
+    <div class="form-group">
+      <label>支払期限</label>
+      <input type="date" id="dueDate">
+    </div>
+    <div class="form-group">
+      <label>取引先</label>
+      <select id="client">
+        <option value="株式会社スターク|熊本県熊本市中央区菅原町10-1森脇ビル303">株式会社スターク</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>件名</label>
+      <input type="text" id="subject" placeholder="例：4月請求書">
+    </div>
+  </div>
+
+  <div class="section-title">品目</div>
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th style="width:50%">品番・品名</th>
+        <th style="width:12%">数量</th>
+        <th style="width:18%">単価</th>
+        <th style="width:15%">金額</th>
+        <th style="width:5%"></th>
+      </tr>
+    </thead>
+    <tbody id="itemsBody"></tbody>
+  </table>
+  <button class="btn btn-add no-print" onclick="addItem()">＋ 品目を追加</button>
+
+  <div class="totals">
+    <table>
+      <tr><td>小計</td><td id="subtotalDisp">¥0</td></tr>
+      <tr><td>消費税（10%）</td><td id="taxDisp">¥0</td></tr>
+      <tr class="total-row"><td>合計</td><td id="totalDisp">¥0</td></tr>
+    </table>
+  </div>
+
+  <div class="form-grid" style="margin-top:20px">
+    <div class="form-group full">
+      <label>交通費詳細（任意）</label>
+      <textarea id="transportDetail" placeholder="例：イオンモール佐賀大和（三瀬有料道路640円＋ガソリン代88km×15円=1320円×10日）"></textarea>
+    </div>
+  </div>
+
+  <button class="btn btn-generate no-print" onclick="generateInvoice()">請求書を作成・印刷</button>
+</div>
+
+<!-- プレビュー -->
+<div id="preview">
+  <div class="invoice">
+    <div class="inv-meta">
+      <div id="pDate"></div>
+      <div id="pNumber"></div>
+    </div>
+    <div class="inv-title">請求書</div>
+    <div class="inv-body">
+      <div class="inv-client">
+        <h2 id="pClient"></h2>
+        <div id="pSubject"></div>
+        <p style="margin-top:12px">下記のとおりご請求申し上げます。</p>
+        <p class="inv-amount" style="margin-top:16px">ご請求金額　<span id="pTotal"></span></p>
+        <p id="pDue" style="font-size:13px;margin-top:8px"></p>
+      </div>
+      <div class="inv-company">
+        <div class="inv-logo">NEXTRIBE</div>
+        <div style="margin-top:8px">
+          株式会社NEXTRIBE<br>
+          村田 雄哉<br><br>
+          〒814-0101<br>
+          福岡県福岡市城南区<br>
+          荒江1-34-18-202<br><br>
+          TEL: 090-7150-8985<br>
+          nextribe.info@gmail.com<br>
+          登録番号: T1290001075540
+        </div>
+      </div>
+    </div>
+
+    <table class="inv-table">
+      <thead>
+        <tr>
+          <th style="width:55%;text-align:left;padding-left:12px">品番・品名</th>
+          <th style="width:12%">数量</th>
+          <th style="width:17%">単価</th>
+          <th style="width:16%">金額</th>
+        </tr>
+      </thead>
+      <tbody id="pItems"></tbody>
+      <tr><td colspan="4" style="height:30px;border-bottom:1px solid #ddd"></td></tr>
+      <tr><td colspan="4" style="height:30px;border-bottom:1px solid #ddd"></td></tr>
+    </table>
+
+    <div class="inv-totals">
+      <table>
+        <tr><td>小計</td><td id="pSubtotal"></td></tr>
+        <tr><td>消費税（10%）</td><td id="pTax"></td></tr>
+        <tr class="grand"><td>合計</td><td id="pGrand"></td></tr>
+      </table>
+    </div>
+
+    <div class="inv-transport" id="pTransport"></div>
+    <div class="inv-bank">
+      お振込先：<br>
+      三井住友銀行　トランクNORTH支店　普通0505622　カ）ネクストライブ
+    </div>
+    <div class="inv-footer">請求書作成システム - 株式会社NEXTRIBE</div>
+  </div>
+  <div style="text-align:center;margin-top:20px" class="no-print">
+    <button class="btn" style="background:#1a1a2e;color:#fff;padding:12px 40px;font-size:16px;margin-right:12px" onclick="window.print()">印刷 / PDF保存</button>
+    <button class="btn" style="background:#eee;color:#333;padding:12px 40px;font-size:16px" onclick="backToForm()">戻る</button>
+  </div>
+</div>
+
+</div>
+
+<script>
+// 今日の日付セット
+const today = new Date();
+const fmt = d => d.toISOString().split('T')[0];
+document.getElementById('invoiceDate').value = fmt(today);
+const due = new Date(today); due.setMonth(due.getMonth()+1); due.setDate(0);
+document.getElementById('dueDate').value = fmt(due);
+
+let itemCount = 0;
+function addItem(name='', qty='', price='') {
+  const tbody = document.getElementById('itemsBody');
+  const id = itemCount++;
+  const tr = document.createElement('tr');
+  tr.id = 'item-'+id;
+  tr.innerHTML = `
+    <td><input type="text" value="${name}" oninput="calcTotals()" placeholder="品番・品名"></td>
+    <td><input type="number" value="${qty}" oninput="calcTotals()" placeholder="0" style="text-align:right"></td>
+    <td><input type="number" value="${price}" oninput="calcTotals()" placeholder="0" style="text-align:right"></td>
+    <td class="amount" id="amt-${id}">¥0</td>
+    <td><button class="btn btn-del" onclick="removeItem('item-${id}')">✕</button></td>`;
+  tbody.appendChild(tr);
+  calcTotals();
+}
+function removeItem(id) { document.getElementById(id)?.remove(); calcTotals(); }
+
+function calcTotals() {
+  let subtotal = 0;
+  document.querySelectorAll('#itemsBody tr').forEach(tr => {
+    const inputs = tr.querySelectorAll('input');
+    const qty = parseFloat(inputs[1]?.value)||0;
+    const price = parseFloat(inputs[2]?.value)||0;
+    const amt = qty * price;
+    const id = tr.id.replace('item-','');
+    const amtEl = document.getElementById('amt-'+id);
+    if(amtEl) amtEl.textContent = '¥'+amt.toLocaleString();
+    subtotal += amt;
+  });
+  const tax = Math.floor(subtotal * 0.1);
+  const total = subtotal + tax;
+  document.getElementById('subtotalDisp').textContent = '¥'+subtotal.toLocaleString();
+  document.getElementById('taxDisp').textContent = '¥'+tax.toLocaleString();
+  document.getElementById('totalDisp').textContent = '¥'+total.toLocaleString();
+  return {subtotal, tax, total};
+}
+
+// 請求書番号生成
+function genNumber(dateStr) {
+  const d = dateStr.replace(/-/g,'');
+  return d+'-001';
+}
+
+function fmtDate(str) {
+  const d = new Date(str);
+  return `${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月${String(d.getDate()).padStart(2,'0')}日`;
+}
+
+function generateInvoice() {
+  const date = document.getElementById('invoiceDate').value;
+  const due = document.getElementById('dueDate').value;
+  const clientVal = document.getElementById('client').value;
+  const clientName = clientVal.split('|')[0];
+  const subject = document.getElementById('subject').value;
+  const transport = document.getElementById('transportDetail').value;
+  const {subtotal, tax, total} = calcTotals();
+
+  document.getElementById('pDate').textContent = fmtDate(date);
+  document.getElementById('pNumber').textContent = '請求番号: '+genNumber(date);
+  document.getElementById('pClient').textContent = clientName+' 御中';
+  document.getElementById('pSubject').textContent = '件名：'+subject;
+  document.getElementById('pTotal').textContent = '¥'+total.toLocaleString()+' -';
+  document.getElementById('pDue').textContent = 'お支払い期限：'+fmtDate(due);
+  document.getElementById('pSubtotal').textContent = subtotal.toLocaleString();
+  document.getElementById('pTax').textContent = tax.toLocaleString();
+  document.getElementById('pGrand').textContent = total.toLocaleString();
+
+  const pItems = document.getElementById('pItems');
+  pItems.innerHTML = '';
+  document.querySelectorAll('#itemsBody tr').forEach(tr => {
+    const inputs = tr.querySelectorAll('input');
+    const name = inputs[0]?.value||'';
+    const qty = parseFloat(inputs[1]?.value)||0;
+    const price = parseFloat(inputs[2]?.value)||0;
+    if(!name) return;
+    const amt = qty * price;
+    pItems.innerHTML += `<tr>
+      <td style="padding-left:12px">${name}</td>
+      <td class="center">${qty.toLocaleString()}</td>
+      <td class="right">${price.toLocaleString()}</td>
+      <td class="right">${amt.toLocaleString()}</td>
+    </tr>`;
+  });
+
+  if(transport) {
+    document.getElementById('pTransport').innerHTML = `<strong>交通費詳細</strong>${transport}`;
+  } else {
+    document.getElementById('pTransport').innerHTML = '';
+  }
+
+  document.querySelector('.form-section').style.display = 'none';
+  document.getElementById('preview').style.display = 'block';
+}
+
+function backToForm() {
+  document.querySelector('.form-section').style.display = 'block';
+  document.getElementById('preview').style.display = 'none';
+}
+
+// 初期品目2行
+addItem('[納品分] イベント稼動費', '', 30000);
+addItem('[納品分] 上記交通費', 1, '');
+</script>
+</body>
+</html>
