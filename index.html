@@ -33,6 +33,18 @@ textarea { resize: vertical; min-height: 80px; }
 .btn-generate { background: #1a1a2e; color: #fff; padding: 12px 32px; font-size: 16px; width: 100%; margin-top: 24px; border-radius: 6px; }
 .btn-generate:hover { background: #2d2d4e; }
 
+/* 自動取得エリア */
+.auto-fetch-box { background: #f0f5ff; border: 1px solid #c0d0ef; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+.auto-fetch-box h3 { font-size: 14px; color: #2244aa; margin-bottom: 10px; }
+.auto-fetch-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.auto-fetch-row select { width: 120px; }
+.btn-fetch { background: #2244aa; color: #fff; padding: 8px 20px; }
+.btn-fetch:hover { background: #1a3388; }
+.btn-fetch:disabled { background: #aaa; cursor: not-allowed; }
+#fetchStatus { font-size: 13px; color: #555; margin-top: 8px; }
+#fetchStatus.error { color: #c0392b; }
+#fetchStatus.success { color: #2d7a2d; }
+
 /* 印刷用 */
 @media print {
   body { background: #fff; }
@@ -64,11 +76,10 @@ textarea { resize: vertical; min-height: 80px; }
 .inv-totals td { padding: 8px 12px; font-size: 14px; border-bottom: 1px solid #eee; }
 .inv-totals td:last-child { text-align: right; }
 .inv-totals tr.grand { background: #1a1a2e; color: #fff; font-size: 16px; }
-.inv-transport { margin-top: 24px; font-size: 12px; line-height: 1.8; }
+.inv-transport { margin-top: 24px; font-size: 12px; line-height: 1.8; white-space: pre-wrap; }
 .inv-transport strong { display: block; margin-bottom: 4px; }
 .inv-bank { margin-top: 20px; font-size: 13px; font-weight: bold; }
 .inv-footer { text-align: right; color: #aaa; font-size: 10px; margin-top: 30px; }
-.stamp-area { width: 60px; height: 60px; border: 1px solid #333; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; color: #999; margin-left: 10px; vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -77,6 +88,17 @@ textarea { resize: vertical; min-height: 80px; }
 <!-- 入力フォーム -->
 <div class="form-section">
   <h1>請求書作成</h1>
+
+  <!-- スプレッドシート自動取得 -->
+  <div class="auto-fetch-box no-print">
+    <h3>スプレッドシートから自動取得（株式会社スターク向け）</h3>
+    <div class="auto-fetch-row">
+      <select id="fetchMonth"></select>
+      <button class="btn btn-fetch" onclick="fetchFromSpreadsheet()">スプレッドシートから取得</button>
+    </div>
+    <div id="fetchStatus"></div>
+  </div>
+
   <div class="form-grid">
     <div class="form-group">
       <label>請求日</label>
@@ -200,12 +222,67 @@ textarea { resize: vertical; min-height: 80px; }
 </div>
 
 <script>
-// 今日の日付セット
+const API_BASE = 'https://nextribe-linebot.onrender.com';
+
+// 月セレクト初期化
 const today = new Date();
 const fmt = d => d.toISOString().split('T')[0];
 document.getElementById('invoiceDate').value = fmt(today);
 const due = new Date(today); due.setMonth(due.getMonth()+1); due.setDate(0);
 document.getElementById('dueDate').value = fmt(due);
+
+const monthSel = document.getElementById('fetchMonth');
+for (let m = 1; m <= 12; m++) {
+  const opt = document.createElement('option');
+  opt.value = m;
+  opt.textContent = m + '月';
+  if (m === today.getMonth() + 1) opt.selected = true;
+  monthSel.appendChild(opt);
+}
+
+// スプレッドシートから自動取得
+async function fetchFromSpreadsheet() {
+  const month = document.getElementById('fetchMonth').value;
+  const status = document.getElementById('fetchStatus');
+  const btn = document.querySelector('.btn-fetch');
+
+  btn.disabled = true;
+  status.className = '';
+  status.textContent = '取得中...';
+
+  try {
+    const res = await fetch(`${API_BASE}/generate-invoice?month=${month}`);
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || '取得失敗');
+
+    // 品目をクリアして再セット
+    document.getElementById('itemsBody').innerHTML = '';
+    itemCount = 0;
+
+    data.items.forEach(item => addItem(item.name, item.qty, item.price));
+
+    // 件名を自動セット
+    document.getElementById('subject').value = `${month}月請求書`;
+
+    // 交通費詳細
+    if (data.transportDetail) {
+      document.getElementById('transportDetail').value = data.transportDetail;
+    }
+
+    let msg = `✅ ${month}月のデータを取得しました`;
+    if (data.unknownLocations && data.unknownLocations.length > 0) {
+      msg += `\n⚠️ 交通費未計算の勤務先があります: ${data.unknownLocations.join('、')}`;
+    }
+    status.className = 'success';
+    status.textContent = msg;
+  } catch (err) {
+    status.className = 'error';
+    status.textContent = '❌ ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 let itemCount = 0;
 function addItem(name='', qty='', price='') {
@@ -244,7 +321,6 @@ function calcTotals() {
   return {subtotal, tax, total};
 }
 
-// 請求書番号生成
 function genNumber(dateStr) {
   const d = dateStr.replace(/-/g,'');
   return d+'-001';
@@ -306,9 +382,7 @@ function backToForm() {
   document.getElementById('preview').style.display = 'none';
 }
 
-// 初期品目2行
-addItem('[納品分] イベント稼動費', '', 30000);
-addItem('[納品分] 上記交通費', 1, '');
+// 初期品目なし（自動取得 or 手動）
 </script>
 </body>
 </html>
