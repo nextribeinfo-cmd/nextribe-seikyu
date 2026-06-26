@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>交通費入力 | NEXTRIBE</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans JP', sans-serif; background: #f5f5f5; color: #333; }
+.container { max-width: 860px; margin: 30px auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+h1 { font-size: 20px; font-weight: bold; margin-bottom: 24px; color: #1a1a2e; border-bottom: 2px solid #1a1a2e; padding-bottom: 10px; }
+label { font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px; }
+input, select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit; }
+input:focus, select:focus { outline: none; border-color: #a05000; }
+.btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
+
+/* 交通費入力エリア */
+.transport-input-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.transport-input-row .field { display: flex; flex-direction: column; gap: 4px; }
+.transport-input-row input[type="date"] { width: 155px; }
+.transport-input-row select { width: 140px; }
+.transport-input-row input[type="number"] { width: 140px; }
+.btn-add { background: #a05000; color: #fff; padding: 10px 20px; align-self: flex-end; }
+.btn-add:hover { background: #7a3c00; }
+
+.status { font-size: 13px; margin: 8px 0; min-height: 20px; }
+.status.ok { color: #2d7a2d; }
+.status.err { color: #c0392b; }
+
+/* リスト */
+.list-wrap { margin-top: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th { background: #1a1a2e; color: #fff; padding: 8px 10px; text-align: left; font-size: 12px; }
+tbody td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+.btn-del { background: #fde8e8; color: #c0392b; padding: 4px 10px; font-size: 12px; }
+
+/* 月別サマリ */
+.summary-box { margin-top: 28px; background: #f0f5ff; border: 1px solid #c0d0ef; border-radius: 8px; padding: 16px; }
+.summary-box h3 { font-size: 14px; color: #2244aa; margin-bottom: 10px; }
+.summary-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.summary-row select { width: 100px; }
+.btn-summary { background: #2244aa; color: #fff; padding: 8px 16px; }
+.btn-summary:hover { background: #1a3388; }
+textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 100px; margin-top: 8px; }
+.btn-copy { background: #e8f4e8; color: #2d7a2d; padding: 8px 16px; margin-top: 8px; }
+.btn-copy:hover { background: #d0ecd0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>交通費入力</h1>
+
+  <!-- 入力行 -->
+  <div class="transport-input-row">
+    <div class="field">
+      <label>日付</label>
+      <input type="date" id="tDate">
+    </div>
+    <div class="field">
+      <label>スタッフ</label>
+      <select id="tStaff">
+        <option value="村田雄哉">村田雄哉</option>
+        <option value="鮎川公彦">鮎川公彦</option>
+        <option value="永島大夢">永島大夢</option>
+        <option value="上原恵介">上原恵介</option>
+        <option value="川﨑茉奈">川﨑茉奈</option>
+        <option value="原悠真">原悠真</option>
+        <option value="梅下想菜">梅下想菜</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>勤務先</label>
+      <select id="tLocation">
+        <option value="ds佐賀夢咲">ds佐賀夢咲</option>
+        <option value="イオンモール佐賀大和">イオンモール佐賀大和</option>
+        <option value="ゆめタウン武雄">ゆめタウン武雄</option>
+        <option value="シティモール荒尾">シティモール荒尾</option>
+        <option value="その他">その他</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>交通費手動入力(円)</label>
+      <input type="number" id="tManTravel" placeholder="村田以外">
+    </div>
+    <button class="btn btn-add" onclick="addTransportRow()">追加して保存</button>
+  </div>
+  <div id="addStatus" class="status"></div>
+
+  <!-- 入力済みリスト -->
+  <div class="list-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日付</th><th>スタッフ</th><th>勤務先</th>
+          <th>交通費(自動)</th><th>交通費(手動)</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="transportBody"></tbody>
+    </table>
+  </div>
+
+  <!-- 月別サマリ -->
+  <div class="summary-box">
+    <h3>月別交通費詳細テキスト生成</h3>
+    <div class="summary-row">
+      <select id="summaryMonth"></select>
+      <button class="btn btn-summary" onclick="fetchSummary()">生成</button>
+    </div>
+    <div id="summaryStatus" class="status"></div>
+    <textarea id="summaryText" placeholder="ここに生成されます"></textarea>
+    <button class="btn btn-copy" onclick="copyText()">コピー</button>
+  </div>
+</div>
+
+<script>
+const GAS_API = 'https://script.google.com/macros/s/AKfycbzRPlb1WADZw3dUOeY90aw0zTWQ47ThDZIBzW3BtO9j9NoPMSGc308gQhMwaE4mF04Q4Q/exec';
+
+const MURATA_TRAVEL = {
+  '夢咲':    { km: 96,  mitsuse: 640, highway: 0 },
+  '佐賀大和': { km: 86,  mitsuse: 640, highway: 0 },
+  '武雄':    { km: 144, mitsuse: 0,   highway: 2380 },
+  '荒尾':    { km: 182, mitsuse: 0,   highway: 4420 },
+};
+const GAS_PER_KM = 15;
+
+function getMurataRule(location) {
+  for (const key of Object.keys(MURATA_TRAVEL)) {
+    if (location.includes(key)) return MURATA_TRAVEL[key];
+  }
+  return null;
+}
+
+function calcAutoTravel(staff, location) {
+  if (!staff.includes('村田')) return 0;
+  const rule = getMurataRule(location);
+  if (!rule) return 0;
+  return rule.km * GAS_PER_KM + rule.mitsuse + rule.highway;
+}
+
+// 日付初期値
+const today = new Date();
+const fmt = d => d.toISOString().split('T')[0];
+document.getElementById('tDate').value = fmt(today);
+
+// 月セレクト
+const monthSel = document.getElementById('summaryMonth');
+for (let m = 1; m <= 12; m++) {
+  const opt = document.createElement('option');
+  opt.value = m;
+  opt.textContent = m + '月';
+  if (m === today.getMonth() + 1) opt.selected = true;
+  monthSel.appendChild(opt);
+}
+
+async function addTransportRow() {
+  const date      = document.getElementById('tDate').value;
+  const staff     = document.getElementById('tStaff').value;
+  const location  = document.getElementById('tLocation').value;
+  const manTravel = parseInt(document.getElementById('tManTravel').value) || 0;
+  const status    = document.getElementById('addStatus');
+
+  if (!date) { status.className = 'status err'; status.textContent = '日付を入力してください'; return; }
+
+  const autoTravel = calcAutoTravel(staff, location);
+
+  // テーブルに追加
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${date}</td>
+    <td>${staff}</td>
+    <td>${location}</td>
+    <td>${autoTravel ? autoTravel.toLocaleString() + '円' : '-'}</td>
+    <td>${manTravel ? manTravel.toLocaleString() + '円' : '-'}</td>
+    <td><button class="btn btn-del" onclick="this.closest('tr').remove()">✕</button></td>`;
+  document.getElementById('transportBody').appendChild(tr);
+
+  // GASに保存
+  status.className = 'status';
+  status.textContent = '保存中...';
+  try {
+    await fetch(GAS_API, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'addRow', date, staff, location, travelMan: manTravel })
+    });
+    status.className = 'status ok';
+    status.textContent = `✅ ${date} ${staff}（${location}）を保存しました`;
+  } catch(e) {
+    status.className = 'status err';
+    status.textContent = '❌ 保存失敗: ' + e.message;
+  }
+
+  document.getElementById('tManTravel').value = '';
+}
+
+async function fetchSummary() {
+  const month  = document.getElementById('summaryMonth').value;
+  const status = document.getElementById('summaryStatus');
+  status.className = 'status';
+  status.textContent = '取得中...';
+  try {
+    const res  = await fetch(`${GAS_API}?action=getTransportDetail&month=${month}`);
+    const data = await res.json();
+    document.getElementById('summaryText').value = data.detail || '（データなし）';
+    status.className = 'status ok';
+    status.textContent = data.unknownLocations?.length
+      ? `⚠️ 交通費未計算の勤務先: ${data.unknownLocations.join('、')}`
+      : '✅ 生成完了';
+  } catch(e) {
+    status.className = 'status err';
+    status.textContent = '❌ 取得失敗: ' + e.message;
+  }
+}
+
+function copyText() {
+  const text = document.getElementById('summaryText').value;
+  navigator.clipboard.writeText(text).then(() => alert('コピーしました'));
+}
+</script>
+</body>
+</html>
