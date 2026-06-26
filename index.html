@@ -45,6 +45,23 @@ textarea { resize: vertical; min-height: 80px; }
 #fetchStatus.error { color: #c0392b; }
 #fetchStatus.success { color: #2d7a2d; }
 
+/* 交通費入力エリア */
+.transport-box { background: #fff8f0; border: 1px solid #f0d0a0; border-radius: 8px; padding: 16px; margin-top: 20px; }
+.transport-box h3 { font-size: 14px; color: #a05000; margin-bottom: 12px; }
+.transport-input-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.transport-input-row input[type="date"] { width: 150px; }
+.transport-input-row select { width: 130px; }
+.btn-transport-add { background: #a05000; color: #fff; padding: 8px 16px; }
+.btn-transport-add:hover { background: #7a3c00; }
+.transport-list { margin-top: 10px; }
+.transport-list table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.transport-list th { background: #f0d0a0; padding: 6px 8px; text-align: left; font-size: 12px; }
+.transport-list td { padding: 6px 8px; border-bottom: 1px solid #f5e0c0; }
+.btn-transport-del { background: #fde8e8; color: #c0392b; padding: 4px 8px; font-size: 12px; }
+.transport-status { font-size: 12px; margin-top: 6px; }
+.transport-status.ok { color: #2d7a2d; }
+.transport-status.err { color: #c0392b; }
+
 /* 印刷用 */
 @media print {
   body { background: #fff; }
@@ -144,6 +161,39 @@ textarea { resize: vertical; min-height: 80px; }
     </table>
   </div>
 
+  <!-- 交通費入力 -->
+  <div class="transport-box no-print">
+    <h3>交通費入力（1日ずつ記録）</h3>
+    <div class="transport-input-row">
+      <input type="date" id="tDate">
+      <select id="tStaff">
+        <option value="村田雄哉">村田雄哉</option>
+        <option value="鮎川公彦">鮎川公彦</option>
+        <option value="永島大夢">永島大夢</option>
+        <option value="上原恵介">上原恵介</option>
+        <option value="川﨑茉奈">川﨑茉奈</option>
+        <option value="原悠真">原悠真</option>
+        <option value="梅下想菜">梅下想菜</option>
+      </select>
+      <select id="tLocation">
+        <option value="ds佐賀夢咲">ds佐賀夢咲</option>
+        <option value="イオンモール佐賀大和">イオンモール佐賀大和</option>
+        <option value="ゆめタウン武雄">ゆめタウン武雄</option>
+        <option value="シティモール荒尾">シティモール荒尾</option>
+        <option value="その他">その他</option>
+      </select>
+      <input type="number" id="tManTravel" placeholder="交通費手動(円)" style="width:160px">
+      <button class="btn btn-transport-add" onclick="addTransportRow()">追加して保存</button>
+    </div>
+    <div id="transportStatus" class="transport-status"></div>
+    <div class="transport-list">
+      <table id="transportTable">
+        <thead><tr><th>日付</th><th>スタッフ</th><th>勤務先</th><th>交通費(自動)</th><th>交通費(手動)</th><th></th></tr></thead>
+        <tbody id="transportBody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="form-grid" style="margin-top:20px">
     <div class="form-group full">
       <label>交通費詳細（任意）</label>
@@ -225,6 +275,94 @@ textarea { resize: vertical; min-height: 80px; }
 
 <script>
 const API_BASE = 'https://nextribe-linebot.onrender.com';
+const GAS_API = 'https://script.google.com/macros/s/AKfycbzRPlb1WADZw3dUOeY90aw0zTWQ47ThDZIBzW3BtO9j9NoPMSGc308gQhMwaE4mF04Q4Q/exec';
+
+// 交通費ルール（GASと同じ定義）
+const MURATA_TRAVEL = {
+  '夢咲':    { km: 96,  mitsuse: 640, highway: 0 },
+  '佐賀大和': { km: 86,  mitsuse: 640, highway: 0 },
+  '武雄':    { km: 144, mitsuse: 0,   highway: 2380 },
+  '荒尾':    { km: 182, mitsuse: 0,   highway: 4420 },
+};
+const GAS_PER_KM = 15;
+
+function getMurataTravel(location) {
+  for (const key of Object.keys(MURATA_TRAVEL)) {
+    if (location.includes(key)) return MURATA_TRAVEL[key];
+  }
+  return null;
+}
+
+function calcAutoTravel(staff, location) {
+  if (!staff.includes('村田')) return 0;
+  const rule = getMurataTravel(location);
+  if (!rule) return 0;
+  return rule.km * GAS_PER_KM + rule.mitsuse + rule.highway;
+}
+
+// 交通費行を追加してGASに保存
+async function addTransportRow() {
+  const date     = document.getElementById('tDate').value;
+  const staff    = document.getElementById('tStaff').value;
+  const location = document.getElementById('tLocation').value;
+  const manTravel = parseInt(document.getElementById('tManTravel').value) || 0;
+  const status   = document.getElementById('transportStatus');
+
+  if (!date) { status.className = 'transport-status err'; status.textContent = '日付を入力してください'; return; }
+
+  const autoTravel = calcAutoTravel(staff, location);
+
+  // テーブルに追加
+  const tbody = document.getElementById('transportBody');
+  const tr = document.createElement('tr');
+  tr.dataset.date = date;
+  tr.dataset.staff = staff;
+  tr.dataset.location = location;
+  tr.dataset.auto = autoTravel;
+  tr.dataset.man = manTravel;
+  tr.innerHTML = `
+    <td>${date}</td>
+    <td>${staff}</td>
+    <td>${location}</td>
+    <td>${autoTravel ? autoTravel.toLocaleString() + '円' : '-'}</td>
+    <td>${manTravel ? manTravel.toLocaleString() + '円' : '-'}</td>
+    <td><button class="btn btn-transport-del" onclick="this.closest('tr').remove()">✕</button></td>`;
+  tbody.appendChild(tr);
+
+  // GASに保存
+  status.className = 'transport-status';
+  status.textContent = '保存中...';
+  try {
+    await fetch(GAS_API, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'addRow', date, staff, location, travelMan: manTravel })
+    });
+    status.className = 'transport-status ok';
+    status.textContent = `✅ ${date} ${staff} ${location} を保存しました`;
+  } catch(e) {
+    status.className = 'transport-status err';
+    status.textContent = '❌ 保存に失敗しました: ' + e.message;
+  }
+
+  // 入力リセット
+  document.getElementById('tManTravel').value = '';
+}
+
+// 交通費詳細テキストをGASから取得してtextareaに反映
+async function fetchTransportDetail(month) {
+  try {
+    const res = await fetch(`${GAS_API}?action=getTransportDetail&month=${month}`);
+    const data = await res.json();
+    if (data.detail) {
+      document.getElementById('transportDetail').value = data.detail;
+    }
+    return data;
+  } catch(e) {
+    return { detail: '', unknownLocations: [] };
+  }
+}
 
 // 月セレクト初期化
 const today = new Date();
@@ -267,14 +405,21 @@ async function fetchFromSpreadsheet() {
     // 件名を自動セット
     document.getElementById('subject').value = `${month}月請求書`;
 
-    // 交通費詳細
-    if (data.transportDetail) {
+    // 交通費詳細をGASから取得
+    const transportData = await fetchTransportDetail(month);
+    if (transportData.detail) {
+      document.getElementById('transportDetail').value = transportData.detail;
+    } else if (data.transportDetail) {
       document.getElementById('transportDetail').value = data.transportDetail;
     }
 
     let msg = `✅ ${month}月のデータを取得しました`;
-    if (data.unknownLocations && data.unknownLocations.length > 0) {
-      msg += `\n⚠️ 交通費未計算の勤務先があります: ${data.unknownLocations.join('、')}`;
+    const unknowns = [
+      ...(data.unknownLocations || []),
+      ...(transportData.unknownLocations || [])
+    ];
+    if (unknowns.length > 0) {
+      msg += `\n⚠️ 交通費未計算の勤務先: ${[...new Set(unknowns)].join('、')}`;
     }
     status.className = 'success';
     status.textContent = msg;
@@ -383,6 +528,9 @@ function backToForm() {
   document.querySelector('.form-section').style.display = 'block';
   document.getElementById('preview').style.display = 'none';
 }
+
+// 交通費入力の日付初期値
+document.getElementById('tDate').value = fmt(today);
 
 // 初期品目なし（自動取得 or 手動）
 </script>
