@@ -284,12 +284,17 @@ async function fetchFromSpreadsheet() {
     // 件名を自動セット
     document.getElementById('subject').value = `${month}月請求書`;
 
-    // 交通費詳細をGASから取得
+    // 交通費詳細: 村田分は品目と同じ自動計算（Render）を正とし、他スタッフ分はGASの手入力データを使う
     const transportData = await fetchTransportDetail(month);
-    if (transportData.detail) {
-      document.getElementById('transportDetail').value = transportData.detail;
-    } else if (data.transportDetail) {
-      document.getElementById('transportDetail').value = data.transportDetail;
+    const murataParas = (data.transportDetail || '').split('\n')
+      .filter(p => p.trim() && p.startsWith('村田'));
+    const otherParas = (transportData.detail || '').split('\n')
+      .filter(p => p.trim() && !p.startsWith('村田'));
+    const merged = [...murataParas, ...otherParas].join('\n');
+    if (merged) {
+      document.getElementById('transportDetail').value = merged;
+    } else if (transportData.detail || data.transportDetail) {
+      document.getElementById('transportDetail').value = transportData.detail || data.transportDetail;
     }
 
     let msg = `✅ ${month}月のデータを取得しました`;
